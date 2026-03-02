@@ -6,6 +6,8 @@ swingLen   = input.int(3,      "Swing Lookback/Lookahead", minval=1, maxval=20)
 minWickPct = input.float(0.05, "Min Wick Beyond Swing (%)", minval=0.0, step=0.01)
 maxAge     = input.int(500,    "Max Swing Age (bars)", minval=50, maxval=2000,
              tooltip="Swings older than this are expired.")
+breakMult  = input.float(1.0,  "Break Threshold (ATR mult)", minval=0.0, step=0.1,
+             tooltip="Swing is only broken when close exceeds it by this many ATRs. Higher = swings survive longer. 0 = strict close break.")
 showRecent = input.bool(false, "Show Recent Only",
              tooltip="When enabled, only shows SFP markers within the last N bars.")
 recentBars = input.int(20,     "Recent Bars Count", minval=5, maxval=500)
@@ -14,7 +16,10 @@ showBear   = input.bool(true,  "Show Bearish SFPs")
 bullColor  = input.color(color.new(#00e676, 0), "Bullish Color")
 bearColor  = input.color(color.new(#ff1744, 0), "Bearish Color")
 maxSwings  = input.int(50,     "Max Swings Tracked", minval=10, maxval=200,
-             tooltip="Maximum number of swing highs/lows to keep active. Increase if swings are being dropped.")
+             tooltip="Maximum number of swing highs/lows to keep active.")
+
+atrVal      = ta.atr(14)
+breakBuffer = nz(atrVal * breakMult, 0)
 
 // ── Swing Detection ─────────────────────────────────────────
 isSwingHigh(idx) =>
@@ -78,10 +83,9 @@ if array.size(slBars) > 0
 //   2. Close fails back on the origin side
 //   3. Wick beyond swing meets minimum size threshold
 //
-// Swings are only cleared by: producing an SFP (consumed) or maxAge expiry.
-// No "break" logic — old swing highs act as resistance, old swing lows
-// act as support, and sweeps of those levels are valid SFPs regardless
-// of intermediate price action.
+// A swing is broken when a candle closes beyond it by more than
+// breakMult × ATR(14). Marginal closes near the level don't kill
+// the swing — only decisive breaks beyond the tolerance buffer.
 
 bearishSFP = false
 bullishSFP = false
@@ -97,6 +101,8 @@ if showBear and array.size(shPrices) > 0
                 if (wickDepth / swPrice) * 100 >= minWickPct
                     bearishSFP := true
                     array.set(shStatus, i, 1)
+            else if close > swPrice + breakBuffer
+                array.set(shStatus, i, 1)
 
 // Check swing lows → bullish SFP
 if showBull and array.size(slPrices) > 0
@@ -109,6 +115,8 @@ if showBull and array.size(slPrices) > 0
                 if (wickDepth / swPrice) * 100 >= minWickPct
                     bullishSFP := true
                     array.set(slStatus, i, 1)
+            else if close < swPrice - breakBuffer
+                array.set(slStatus, i, 1)
 
 // ── Plot ────────────────────────────────────────────────────
 inRange = not showRecent or bar_index >= last_bar_index - recentBars
