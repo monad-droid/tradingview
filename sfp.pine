@@ -6,8 +6,6 @@ swingLen   = input.int(3,      "Swing Lookback/Lookahead", minval=1, maxval=20)
 minWickPct = input.float(0.05, "Min Wick Beyond Swing (%)", minval=0.0, step=0.01)
 maxAge     = input.int(500,    "Max Swing Age (bars)", minval=50, maxval=2000,
              tooltip="Swings older than this are expired.")
-breakMult  = input.float(1.0,  "Break Threshold (ATR mult)", minval=0.0, step=0.1,
-             tooltip="Swing is only broken when close exceeds it by this many ATRs. Higher = swings survive longer. 0 = strict close break.")
 showRecent = input.bool(false, "Show Recent Only",
              tooltip="When enabled, only shows SFP markers within the last N bars.")
 recentBars = input.int(20,     "Recent Bars Count", minval=5, maxval=500)
@@ -17,9 +15,11 @@ bullColor  = input.color(color.new(#00e676, 0), "Bullish Color")
 bearColor  = input.color(color.new(#ff1744, 0), "Bearish Color")
 maxSwings  = input.int(50,     "Max Swings Tracked", minval=10, maxval=200,
              tooltip="Maximum number of swing highs/lows to keep active.")
+showSwings = input.bool(false, "Show Swing Levels",
+             tooltip="Debug: mark detected swing highs/lows on chart.")
 
-atrVal      = ta.atr(14)
-breakBuffer = nz(atrVal * breakMult, 0)
+// Break tolerance: 1 ATR buffer so marginal closes don't kill swings
+breakBuffer = nz(ta.atr(14), 0)
 
 // ── Swing Detection ─────────────────────────────────────────
 isSwingHigh(idx) =>
@@ -83,9 +83,8 @@ if array.size(slBars) > 0
 //   2. Close fails back on the origin side
 //   3. Wick beyond swing meets minimum size threshold
 //
-// A swing is broken when a candle closes beyond it by more than
-// breakMult × ATR(14). Marginal closes near the level don't kill
-// the swing — only decisive breaks beyond the tolerance buffer.
+// A swing is broken only when a candle closes beyond it by more
+// than 1 ATR(14). This prevents marginal closes from killing swings.
 
 bearishSFP = false
 bullishSFP = false
@@ -128,6 +127,15 @@ plotshape(bearishSFP and inRange, title="Bearish SFP",
 plotshape(bullishSFP and inRange, title="Bullish SFP",
      style=shape.triangleup, location=location.belowbar,
      color=bullColor, size=size.small, text="SFP")
+
+// ── Debug: Swing level markers ──────────────────────────────
+plotshape(showSwings and isSwingHigh(swingLen), title="Swing High",
+     style=shape.circle, location=location.abovebar,
+     color=color.new(color.red, 60), size=size.tiny, offset=-swingLen)
+
+plotshape(showSwings and isSwingLow(swingLen), title="Swing Low",
+     style=shape.circle, location=location.abovebar,
+     color=color.new(color.green, 60), size=size.tiny, offset=-swingLen)
 
 // ── Alerts ──────────────────────────────────────────────────
 alertcondition(bearishSFP, title="Bearish SFP", message="Bearish SFP — swept swing high")
