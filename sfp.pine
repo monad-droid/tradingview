@@ -4,8 +4,6 @@ indicator("Swing Failure Pattern (SFP)", overlay=true, max_labels_count=500)
 // ── Inputs ──────────────────────────────────────────────────
 swingLen   = input.int(3,      "Swing Lookback/Lookahead", minval=1, maxval=20)
 minWickPct = input.float(0.05, "Min Wick Beyond Swing (%)", minval=0.0, step=0.01)
-minAge     = input.int(10,     "Min Swing Age (bars)",      minval=1, maxval=200,
-             tooltip="Swing must be at least this many bars old before it can trigger an SFP.")
 maxAge     = input.int(500,    "Max Swing Age (bars)",      minval=50, maxval=2000,
              tooltip="Swings older than this are expired. Website uses 500 candles.")
 showRecent = input.bool(false, "Show Recent Only",
@@ -93,10 +91,6 @@ if showBear and array.size(shPrices) > 0
     for i = 0 to array.size(shPrices) - 1
         if array.get(shStatus, i) == 0
             swPrice = array.get(shPrices, i)
-            swBar   = array.get(shBars, i)
-
-            if bar_index - swBar < minAge
-                continue
 
             if high > swPrice and close < swPrice
                 wickDepth = high - swPrice
@@ -112,10 +106,6 @@ if showBull and array.size(slPrices) > 0
     for i = 0 to array.size(slPrices) - 1
         if array.get(slStatus, i) == 0
             swPrice = array.get(slPrices, i)
-            swBar   = array.get(slBars, i)
-
-            if bar_index - swBar < minAge
-                continue
 
             if low < swPrice and close > swPrice
                 wickDepth = swPrice - low
