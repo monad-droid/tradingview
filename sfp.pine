@@ -76,12 +76,12 @@ if array.size(slBars) > 0
 // An SFP requires:
 //   1. Wick pierces beyond the swing level
 //   2. Close fails back on the origin side
-//   3. Price was approaching from the origin side (close[1] check)
-//   4. Wick beyond swing meets minimum size threshold
+//   3. Wick beyond swing meets minimum size threshold
 //
-// A swing is only "broken" (invalidated) when a candle's entire body
-// is beyond the level (both open and close), representing a decisive break.
-// A single close barely beyond the level does NOT kill the swing.
+// Swings are only cleared by: producing an SFP (consumed) or maxAge expiry.
+// No "break" logic — old swing highs act as resistance, old swing lows
+// act as support, and sweeps of those levels are valid SFPs regardless
+// of intermediate price action.
 
 bearishSFP = false
 bullishSFP = false
@@ -92,14 +92,11 @@ if showBear and array.size(shPrices) > 0
         if array.get(shStatus, i) == 0
             swPrice = array.get(shPrices, i)
 
-            if high > swPrice and close < swPrice and close[1] <= swPrice
+            if high > swPrice and close < swPrice
                 wickDepth = high - swPrice
                 if (wickDepth / swPrice) * 100 >= minWickPct
                     bearishSFP := true
                     array.set(shStatus, i, 1)
-            // Only break when the entire candle body is above the swing
-            else if math.min(open, close) > swPrice
-                array.set(shStatus, i, 1)
 
 // Check swing lows → bullish SFP
 if showBull and array.size(slPrices) > 0
@@ -107,14 +104,11 @@ if showBull and array.size(slPrices) > 0
         if array.get(slStatus, i) == 0
             swPrice = array.get(slPrices, i)
 
-            if low < swPrice and close > swPrice and close[1] >= swPrice
+            if low < swPrice and close > swPrice
                 wickDepth = swPrice - low
                 if (wickDepth / swPrice) * 100 >= minWickPct
                     bullishSFP := true
                     array.set(slStatus, i, 1)
-            // Only break when the entire candle body is below the swing
-            else if math.max(open, close) < swPrice
-                array.set(slStatus, i, 1)
 
 // ── Plot ────────────────────────────────────────────────────
 inRange = not showRecent or bar_index >= last_bar_index - recentBars
