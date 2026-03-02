@@ -81,8 +81,8 @@ if array.size(slBars) > 0
 //   2. Close fails back on the origin side
 //   3. Wick beyond swing meets minimum size threshold
 //
-// No break logic — swings are only cleared by producing an SFP
-// (consumed on first qualifying sweep) or maxAge expiry.
+// No break logic. Swings are never consumed — they stay active until
+// maxAge expiry. Every qualifying sweep fires an SFP signal.
 
 bearishSFP = false
 bullishSFP = false
@@ -97,7 +97,6 @@ if showBear and array.size(shPrices) > 0
                 wickDepth = high - swPrice
                 if (wickDepth / swPrice) * 100 >= minWickPct
                     bearishSFP := true
-                    array.set(shStatus, i, 1)
 
 // Check swing lows → bullish SFP
 if showBull and array.size(slPrices) > 0
@@ -109,7 +108,6 @@ if showBull and array.size(slPrices) > 0
                 wickDepth = swPrice - low
                 if (wickDepth / swPrice) * 100 >= minWickPct
                     bullishSFP := true
-                    array.set(slStatus, i, 1)
 
 // ── Plot ────────────────────────────────────────────────────
 inRange = not showRecent or bar_index >= last_bar_index - recentBars
