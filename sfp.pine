@@ -3,21 +3,18 @@ indicator("Swing Failure Pattern (SFP)", overlay=true, max_labels_count=500)
 
 // ── Inputs ──────────────────────────────────────────────────
 swingLen   = input.int(3,      "Swing Lookback/Lookahead", minval=1, maxval=20)
-minWickPct = input.float(0.05, "Min Wick Beyond Swing (%)", minval=0.0, step=0.01,
-             tooltip="Minimum wick size beyond the swing level to trigger SFP. Prevents tiny wicks from consuming swings prematurely.")
-maxAge     = input.int(500,    "Max Swing Age (bars)", minval=50, maxval=2000,
-             tooltip="Swings older than this are expired.")
+minWickPct = input.float(0.05, "Min Wick Beyond Swing (%)", minval=0.0, step=0.01)
+maxAge     = input.int(500,    "Max Swing Age (bars)",      minval=50, maxval=2000,
+             tooltip="Swings older than this are expired. Website uses 500 candles.")
 showRecent = input.bool(false, "Show Recent Only",
-             tooltip="When enabled, only shows SFP markers within the last N bars.")
-recentBars = input.int(20,     "Recent Bars Count", minval=5, maxval=500)
+             tooltip="When enabled, only shows SFP markers within the last N bars. Disable to see full history.")
+recentBars = input.int(20,    "Recent Bars Count", minval=5, maxval=500)
 showBull   = input.bool(true,  "Show Bullish SFPs")
 showBear   = input.bool(true,  "Show Bearish SFPs")
 bullColor  = input.color(color.new(#00e676, 0), "Bullish Color")
 bearColor  = input.color(color.new(#ff1744, 0), "Bearish Color")
-maxSwings  = input.int(50,     "Max Swings Tracked", minval=10, maxval=200,
-             tooltip="Maximum number of swing highs/lows to keep active.")
-showSwings = input.bool(false, "Show Swing Levels",
-             tooltip="Debug: mark detected swing highs/lows on chart.")
+
+maxSwings = 20
 
 // ── Swing Detection ─────────────────────────────────────────
 isSwingHigh(idx) =>
@@ -37,6 +34,7 @@ isSwingLow(idx) =>
     ok
 
 // ── Swing Storage ───────────────────────────────────────────
+// price, bar_index when swing formed, status (0=active, 1=consumed)
 var float[] shPrices = array.new_float(0)
 var int[]   shBars   = array.new_int(0)
 var int[]   shStatus = array.new_int(0)
@@ -75,14 +73,15 @@ if array.size(slBars) > 0
         if bar_index - array.get(slBars, i) > maxAge
             array.set(slStatus, i, 1)
 
-// ── SFP Detection ───────────────────────────────────────────
-// An SFP requires:
-//   1. Wick pierces beyond the swing level
-//   2. Close fails back on the origin side
-//   3. Wick beyond swing meets minimum size threshold
+// ── SFP Detection — mirrors website detectSFPs logic ────────
+// Website logic per swing:
+//   scan forward bar-by-bar from swing:
+//     swing high: if wick above & close below & wick big enough → SFP, stop
+//                 if close above → swing broken, stop
+//     swing low:  if wick below & close above & wick big enough → SFP, stop
+//                 if close below → swing broken, stop
 //
-// No break logic. Swings are never consumed — they stay active until
-// maxAge expiry. Every qualifying sweep fires an SFP signal.
+// Pine processes one bar at a time, so each bar updates every active swing.
 
 bearishSFP = false
 bullishSFP = false
@@ -97,6 +96,10 @@ if showBear and array.size(shPrices) > 0
                 wickDepth = high - swPrice
                 if (wickDepth / swPrice) * 100 >= minWickPct
                     bearishSFP := true
+                    array.set(shStatus, i, 1)
+            else if close > swPrice
+                // Closed above swing high — broken, no SFP possible
+                array.set(shStatus, i, 1)
 
 // Check swing lows → bullish SFP
 if showBull and array.size(slPrices) > 0
@@ -108,26 +111,19 @@ if showBull and array.size(slPrices) > 0
                 wickDepth = swPrice - low
                 if (wickDepth / swPrice) * 100 >= minWickPct
                     bullishSFP := true
+                    array.set(slStatus, i, 1)
+            else if close < swPrice
+                // Closed below swing low — broken, no SFP possible
+                array.set(slStatus, i, 1)
 
 // ── Plot ────────────────────────────────────────────────────
 inRange = not showRecent or bar_index >= last_bar_index - recentBars
 
-plotshape(bearishSFP and inRange, title="Bearish SFP",
-     style=shape.triangledown, location=location.abovebar,
-     color=bearColor, size=size.small, text="SFP")
+plotshape(bearishSFP and inRange, title="Bearish SFP", style=shape.triangledown,
+     location=location.abovebar, color=bearColor, size=size.small, text="SFP")
 
-plotshape(bullishSFP and inRange, title="Bullish SFP",
-     style=shape.triangleup, location=location.belowbar,
-     color=bullColor, size=size.small, text="SFP")
-
-// ── Debug: Swing level markers ──────────────────────────────
-plotshape(showSwings and isSwingHigh(swingLen), title="Swing High",
-     style=shape.circle, location=location.abovebar,
-     color=color.new(color.red, 60), size=size.tiny, offset=-swingLen)
-
-plotshape(showSwings and isSwingLow(swingLen), title="Swing Low",
-     style=shape.circle, location=location.belowbar,
-     color=color.new(color.green, 60), size=size.tiny, offset=-swingLen)
+plotshape(bullishSFP and inRange, title="Bullish SFP", style=shape.triangleup,
+     location=location.belowbar, color=bullColor, size=size.small, text="SFP")
 
 // ── Alerts ──────────────────────────────────────────────────
 alertcondition(bearishSFP, title="Bearish SFP", message="Bearish SFP — swept swing high")
